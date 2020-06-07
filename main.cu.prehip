@@ -1,10 +1,9 @@
-#include "hip/hip_runtime.h"
 #define USE_MNIST_LOADER
 #define MNIST_DOUBLE
 #include "mnist.h"
 #include "layer.h"
 
-#include <hip/hip_runtime.h>
+#include <cuda.h>
 #include <cstdio>
 #include <time.h>
 
@@ -35,8 +34,8 @@ int main(int argc, const  char **argv)
 {
 	srand(time(NULL));
 
-	hipError_t err = hipInit(0);
-	if (err != hipSuccess) {
+	CUresult err = cuInit(0);
+	if (err != CUDA_SUCCESS) {
 		fprintf(stderr, "CUDA initialisation failed with error code - %d\n", err);
 		return 1;
 	}
@@ -69,17 +68,17 @@ static double forward_pass(double data[28][28])
 
 	l_input.setOutput((float *)input);
 	
-	hipLaunchKernelGGL(fp_preact_c1, dim3(64), dim3(64), 0, 0, (float (*)[28])l_input.output, (float (*)[24][24])l_c1.preact, (float (*)[5][5])l_c1.weight);
-	hipLaunchKernelGGL(fp_bias_c1, dim3(64), dim3(64), 0, 0, (float (*)[24][24])l_c1.preact, l_c1.bias);
-	hipLaunchKernelGGL(apply_step_function, dim3(64), dim3(64), 0, 0, l_c1.preact, l_c1.output, l_c1.O);
+	fp_preact_c1<<<64, 64>>>((float (*)[28])l_input.output, (float (*)[24][24])l_c1.preact, (float (*)[5][5])l_c1.weight);
+	fp_bias_c1<<<64, 64>>>((float (*)[24][24])l_c1.preact, l_c1.bias);
+	apply_step_function<<<64, 64>>>(l_c1.preact, l_c1.output, l_c1.O);
 
-	hipLaunchKernelGGL(fp_preact_s1, dim3(64), dim3(64), 0, 0, (float (*)[24][24])l_c1.output, (float (*)[6][6])l_s1.preact, (float (*)[4][4])l_s1.weight);
-	hipLaunchKernelGGL(fp_bias_s1, dim3(64), dim3(64), 0, 0, (float (*)[6][6])l_s1.preact, l_s1.bias);
-	hipLaunchKernelGGL(apply_step_function, dim3(64), dim3(64), 0, 0, l_s1.preact, l_s1.output, l_s1.O);
+	fp_preact_s1<<<64, 64>>>((float (*)[24][24])l_c1.output, (float (*)[6][6])l_s1.preact, (float (*)[4][4])l_s1.weight);
+	fp_bias_s1<<<64, 64>>>((float (*)[6][6])l_s1.preact, l_s1.bias);
+	apply_step_function<<<64, 64>>>(l_s1.preact, l_s1.output, l_s1.O);
 
-	hipLaunchKernelGGL(fp_preact_f, dim3(64), dim3(64), 0, 0, (float (*)[6][6])l_s1.output, l_f.preact, (float (*)[6][6][6])l_f.weight);
-	hipLaunchKernelGGL(fp_bias_f, dim3(64), dim3(64), 0, 0, l_f.preact, l_f.bias);
-	hipLaunchKernelGGL(apply_step_function, dim3(64), dim3(64), 0, 0, l_f.preact, l_f.output, l_f.O);
+	fp_preact_f<<<64, 64>>>((float (*)[6][6])l_s1.output, l_f.preact, (float (*)[6][6][6])l_f.weight);
+	fp_bias_f<<<64, 64>>>(l_f.preact, l_f.bias);
+	apply_step_function<<<64, 64>>>(l_f.preact, l_f.output, l_f.O);
 	
 	end = clock();
 	return ((double) (end - start)) / CLOCKS_PER_SEC;
@@ -92,23 +91,23 @@ static double back_pass()
 
 	start = clock();
 
-	hipLaunchKernelGGL(bp_weight_f, dim3(64), dim3(64), 0, 0, (float (*)[6][6][6])l_f.d_weight, l_f.d_preact, (float (*)[6][6])l_s1.output);
-	hipLaunchKernelGGL(bp_bias_f, dim3(64), dim3(64), 0, 0, l_f.bias, l_f.d_preact);
+	bp_weight_f<<<64, 64>>>((float (*)[6][6][6])l_f.d_weight, l_f.d_preact, (float (*)[6][6])l_s1.output);
+	bp_bias_f<<<64, 64>>>(l_f.bias, l_f.d_preact);
 
-	hipLaunchKernelGGL(bp_output_s1, dim3(64), dim3(64), 0, 0, (float (*)[6][6])l_s1.d_output, (float (*)[6][6][6])l_f.weight, l_f.d_preact);
-	hipLaunchKernelGGL(bp_preact_s1, dim3(64), dim3(64), 0, 0, (float (*)[6][6])l_s1.d_preact, (float (*)[6][6])l_s1.d_output, (float (*)[6][6])l_s1.preact);
-	hipLaunchKernelGGL(bp_weight_s1, dim3(64), dim3(64), 0, 0, (float (*)[4][4])l_s1.d_weight, (float (*)[6][6])l_s1.d_preact, (float (*)[24][24])l_c1.output);
-	hipLaunchKernelGGL(bp_bias_s1, dim3(64), dim3(64), 0, 0, l_s1.bias, (float (*)[6][6])l_s1.d_preact);
+	bp_output_s1<<<64, 64>>>((float (*)[6][6])l_s1.d_output, (float (*)[6][6][6])l_f.weight, l_f.d_preact);
+	bp_preact_s1<<<64, 64>>>((float (*)[6][6])l_s1.d_preact, (float (*)[6][6])l_s1.d_output, (float (*)[6][6])l_s1.preact);
+	bp_weight_s1<<<64, 64>>>((float (*)[4][4])l_s1.d_weight, (float (*)[6][6])l_s1.d_preact, (float (*)[24][24])l_c1.output);
+	bp_bias_s1<<<64, 64>>>(l_s1.bias, (float (*)[6][6])l_s1.d_preact);
 
-	hipLaunchKernelGGL(bp_output_c1, dim3(64), dim3(64), 0, 0, (float (*)[24][24])l_c1.d_output, (float (*)[4][4])l_s1.weight, (float (*)[6][6])l_s1.d_preact);
-	hipLaunchKernelGGL(bp_preact_c1, dim3(64), dim3(64), 0, 0, (float (*)[24][24])l_c1.d_preact, (float (*)[24][24])l_c1.d_output, (float (*)[24][24])l_c1.preact);
-	hipLaunchKernelGGL(bp_weight_c1, dim3(64), dim3(64), 0, 0, (float (*)[5][5])l_c1.d_weight, (float (*)[24][24])l_c1.d_preact, (float (*)[28])l_input.output);
-	hipLaunchKernelGGL(bp_bias_c1, dim3(64), dim3(64), 0, 0, l_c1.bias, (float (*)[24][24])l_c1.d_preact);
+	bp_output_c1<<<64, 64>>>((float (*)[24][24])l_c1.d_output, (float (*)[4][4])l_s1.weight, (float (*)[6][6])l_s1.d_preact);
+	bp_preact_c1<<<64, 64>>>((float (*)[24][24])l_c1.d_preact, (float (*)[24][24])l_c1.d_output, (float (*)[24][24])l_c1.preact);
+	bp_weight_c1<<<64, 64>>>((float (*)[5][5])l_c1.d_weight, (float (*)[24][24])l_c1.d_preact, (float (*)[28])l_input.output);
+	bp_bias_c1<<<64, 64>>>(l_c1.bias, (float (*)[24][24])l_c1.d_preact);
 
 
-	hipLaunchKernelGGL(apply_grad, dim3(64), dim3(64), 0, 0, l_f.weight, l_f.d_weight, l_f.M * l_f.N);
-	hipLaunchKernelGGL(apply_grad, dim3(64), dim3(64), 0, 0, l_s1.weight, l_s1.d_weight, l_s1.M * l_s1.N);
-	hipLaunchKernelGGL(apply_grad, dim3(64), dim3(64), 0, 0, l_c1.weight, l_c1.d_weight, l_c1.M * l_c1.N);
+	apply_grad<<<64, 64>>>(l_f.weight, l_f.d_weight, l_f.M * l_f.N);
+	apply_grad<<<64, 64>>>(l_s1.weight, l_s1.d_weight, l_s1.M * l_s1.N);
+	apply_grad<<<64, 64>>>(l_c1.weight, l_c1.d_weight, l_c1.M * l_c1.N);
 
 	end = clock();
 	return ((double) (end - start)) / CLOCKS_PER_SEC;
@@ -132,8 +131,8 @@ static void unfold_input(double input[28][28], double unfolded[24*24][5*5])
 
 static void learn()
 {
-	static hipblasHandle_t blas;
-	hipblasCreate(&blas);
+	static cublasHandle_t blas;
+	cublasCreate(&blas);
 
 	float err;
 	int iter = 50;
@@ -155,8 +154,8 @@ static void learn()
 			l_c1.bp_clear();
 
 			// Euclid distance of train_set[i]
-			hipLaunchKernelGGL(makeError, dim3(10), dim3(1), 0, 0, l_f.d_preact, l_f.output, train_set[i].label, 10);
-			hipblasSnrm2(blas, 10, l_f.d_preact, 1, &tmp_err);
+			makeError<<<10, 1>>>(l_f.d_preact, l_f.output, train_set[i].label, 10);
+			cublasSnrm2(blas, 10, l_f.d_preact, 1, &tmp_err);
 			err += tmp_err;
 
 			time_taken += back_pass();
@@ -185,7 +184,7 @@ static unsigned int classify(double data[28][28])
 
 	unsigned int max = 0;
 
-	hipMemcpy(res, l_f.output, sizeof(float) * 10, hipMemcpyDeviceToHost);
+	cudaMemcpy(res, l_f.output, sizeof(float) * 10, cudaMemcpyDeviceToHost);
 
 	for (int i = 1; i < 10; ++i) {
 		if (res[max] < res[i]) {

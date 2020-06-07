@@ -1,5 +1,5 @@
 all:
-	nvcc -lcuda -lcublas *.cu -o CNN  -arch=compute_20 -Wno-deprecated-gpu-targets
+	hipcc -I/opt/rocm/include -I/opt/rocm/hcc/include  -lhipblas *.cu -o CNN
 
 run:
 	./CNN

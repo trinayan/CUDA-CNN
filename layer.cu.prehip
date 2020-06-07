@@ -1,4 +1,3 @@
-#include "hip/hip_runtime.h"
 #include "layer.h"
 
 // Constructor
@@ -26,55 +25,55 @@ Layer::Layer(int M, int N, int O)
 		}
 	}
 
-	hipMalloc(&output, sizeof(float) * O);
-	hipMalloc(&preact, sizeof(float) * O);
+	cudaMalloc(&output, sizeof(float) * O);
+	cudaMalloc(&preact, sizeof(float) * O);
 
-	hipMalloc(&bias, sizeof(float) * N);
+	cudaMalloc(&bias, sizeof(float) * N);
 
-	hipMalloc(&weight, sizeof(float) * M * N);
+	cudaMalloc(&weight, sizeof(float) * M * N);
 
-	hipMalloc(&d_output, sizeof(float) * O);
-	hipMalloc(&d_preact, sizeof(float) * O);
-	hipMalloc(&d_weight, sizeof(float) * M * N);
+	cudaMalloc(&d_output, sizeof(float) * O);
+	cudaMalloc(&d_preact, sizeof(float) * O);
+	cudaMalloc(&d_weight, sizeof(float) * M * N);
 
-	hipMemcpy(bias, h_bias, sizeof(float) * N, hipMemcpyHostToDevice);
+	cudaMemcpy(bias, h_bias, sizeof(float) * N, cudaMemcpyHostToDevice);
 
-	hipMemcpy(weight, h_weight, sizeof(float) * M * N, hipMemcpyHostToDevice);
+	cudaMemcpy(weight, h_weight, sizeof(float) * M * N, cudaMemcpyHostToDevice);
 }
 
 // Destructor
 Layer::~Layer()
 {
-	hipFree(output);
-	hipFree(preact);
+	cudaFree(output);
+	cudaFree(preact);
 
-	hipFree(bias);
+	cudaFree(bias);
 
-	hipFree(weight);
+	cudaFree(weight);
 
-	hipFree(d_output);
-	hipFree(d_preact);
-	hipFree(d_weight);
+	cudaFree(d_output);
+	cudaFree(d_preact);
+	cudaFree(d_weight);
 }
 
 // Send data one row from dataset to the GPU
 void Layer::setOutput(float *data)
 {
-	hipMemcpy(output, data, sizeof(float) * O, hipMemcpyHostToDevice);
+	cudaMemcpy(output, data, sizeof(float) * O, cudaMemcpyHostToDevice);
 }
 
 // Reset GPU memory between iterations
 void Layer::clear()
 {
-	hipMemset(output, 0x00, sizeof(float) * O);
-	hipMemset(preact, 0x00, sizeof(float) * O);
+	cudaMemset(output, 0x00, sizeof(float) * O);
+	cudaMemset(preact, 0x00, sizeof(float) * O);
 }
 
 void Layer::bp_clear()
 {
-	hipMemset(d_output, 0x00, sizeof(float) * O);
-	hipMemset(d_preact, 0x00, sizeof(float) * O);
-	hipMemset(d_weight, 0x00, sizeof(float) * M * N);
+	cudaMemset(d_output, 0x00, sizeof(float) * O);
+	cudaMemset(d_preact, 0x00, sizeof(float) * O);
+	cudaMemset(d_weight, 0x00, sizeof(float) * M * N);
 }
 
 
