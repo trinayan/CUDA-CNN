@@ -8,8 +8,8 @@ InstalledDir: /opt/rocm-3.3.0/hcc/bin
 ROCM 3.3.0
 
 1. cd CUDA-CNN
-2. make cuda
+2. make
 3. Compiler will produce error as shown in the image error.png
-4. Now rename all cu files to cpp
+4. Now rename all *.cu files to *.cpp
 5. Change makefile to use *.cpp instead of *.cu
 6. Run make cuda again. This time build will succeed.
